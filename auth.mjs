@@ -1,0 +1,22 @@
+import {randomBytes,randomUUID,createHash,timingSafeEqual} from 'node:crypto';
+import {InvalidGrantError,InvalidTokenError,InvalidScopeError,InvalidTargetError} from '@modelcontextprotocol/sdk/server/auth/errors.js';
+const token=()=>randomBytes(32).toString('base64url');
+export const equal=(a,b)=>{const x=createHash('sha256').update(String(a)).digest(),y=createHash('sha256').update(String(b)).digest();return timingSafeEqual(x,y)};
+export class PersonalAuth{
+ constructor(base){this.resource=new URL('/mcp',base).href;this.clients=new Map();this.pending=new Map();this.codes=new Map();this.access=new Map();this.refresh=new Map();this.cookies=new Map();this.downloads=new Map();this.cleaner=setInterval(()=>this.prune(),60000);this.cleaner.unref();this.clientsStore={getClient:async id=>this.clients.get(id),registerClient:async c=>{if(this.clients.size>=100)throw Error('Client registration limit reached.');const client={...c,client_id:randomUUID(),client_id_issued_at:Math.floor(Date.now()/1000)};this.clients.set(client.client_id,client);return client}}}
+ prune(){for(const map of [this.pending,this.codes,this.access,this.refresh,this.cookies,this.downloads])for(const [k,v] of map)if(v.expiresAt<=Date.now())map.delete(k)}
+ close(){clearInterval(this.cleaner)}
+ checkResource(resource){if(resource&&resource.href!==this.resource)throw new InvalidTargetError('Wrong recorder resource.');}
+ async authorize(client,params,res){this.checkResource(params.resource);const scopes=params.scopes?.length?params.scopes:['browser:record'];if(scopes.some(s=>s!=='browser:record'))throw new InvalidScopeError('Only browser:record is supported.');if(this.pending.size>=100)throw Error('Too many pending authorizations.');const id=token();this.pending.set(id,{client,params:{...params,scopes},expiresAt:Date.now()+300000});res.redirect('/consent/'+id)}
+ approve(id){const p=this.pending.get(id);if(!p||p.expiresAt<Date.now())throw new InvalidGrantError('Consent request expired.');this.pending.delete(id);const code=token();this.codes.set(code,{...p,expiresAt:Date.now()+60000});const u=new URL(p.params.redirectUri);u.searchParams.set('code',code);if(p.params.state)u.searchParams.set('state',p.params.state);return u.href}
+ code(client,code){const c=this.codes.get(code);if(!c||c.expiresAt<Date.now()||c.client.client_id!==client.client_id)throw new InvalidGrantError('Code is expired, used, or belongs to another client.');return c}
+ async challengeForAuthorizationCode(client,code){return this.code(client,code).params.codeChallenge}
+ mint(client,scopes){const a=token(),r=token(),family=randomUUID();this.access.set(a,{clientId:client.client_id,scopes,resource:this.resource,family,expiresAt:Date.now()+3600000});this.refresh.set(r,{clientId:client.client_id,scopes,family,expiresAt:Date.now()+7*86400000});return {access_token:a,refresh_token:r,token_type:'Bearer',expires_in:3600,scope:scopes.join(' ')}}
+ async exchangeAuthorizationCode(client,code,_verifier,redirectUri,resource){const c=this.code(client,code);this.checkResource(resource);if(redirectUri!==c.params.redirectUri)throw new InvalidGrantError('Redirect URI mismatch.');this.codes.delete(code);return this.mint(client,c.params.scopes)}
+ async exchangeRefreshToken(client,value,scopes,resource){this.checkResource(resource);const r=this.refresh.get(value);if(!r||r.expiresAt<Date.now()||r.clientId!==client.client_id)throw new InvalidGrantError('Refresh token expired or invalid.');if(scopes?.some(s=>!r.scopes.includes(s)))throw new InvalidScopeError('Cannot expand scopes.');this.refresh.delete(value);for(const [k,v] of this.access)if(v.family===r.family)this.access.delete(k);return this.mint(client,scopes||r.scopes)}
+ async verifyAccessToken(value){const a=this.access.get(value);if(!a||a.expiresAt<Date.now())throw new InvalidTokenError('Sign in to the recorder again.');return {token:value,clientId:a.clientId,scopes:a.scopes,expiresAt:Math.floor(a.expiresAt/1000),resource:a.resource}}
+ async revokeToken(client,request){const a=this.access.get(request.token)||this.refresh.get(request.token);if(!a||a.clientId!==client.client_id)return;for(const map of [this.access,this.refresh])for(const [k,v] of map)if(v.family===a.family)map.delete(k)}
+ cookie(){const t=token();this.cookies.set(t,{expiresAt:Date.now()+8*3600000});return t}
+ validCookie(t){return !!t&&this.cookies.get(t)?.expiresAt>Date.now()}
+ download(recording){const t=token();this.downloads.set(t,{...recording,expiresAt:Date.now()+600000});return t}
+}

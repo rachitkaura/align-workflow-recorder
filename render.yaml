@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: align-workflow-recorder
+    runtime: docker
+    plan: free
+    numInstances: 1
+    healthCheckPath: /healthz
+    envVars:
+      - key: RECORDER_PASSWORD
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        value: https://align-career-match-rk.rkaura94.chatgpt.site
+      - key: OUTPUT_DIR
+        value: /app/recordings

@@ -1,0 +1,24 @@
+{
+  "status": "built, not deployed",
+  "tests": {
+    "automated_groups_passed": 7,
+    "coverage": [
+      "origin allowlist and credential URL rejection",
+      "recording lifecycle and browser actions using a mocked browser",
+      "MCP schemas and in-memory transport",
+      "OAuth one-use codes, client/redirect/resource/scope binding and refresh rotation",
+      "authenticated HTTP MCP, discovery and PKCE",
+      "actual WebM-to-MP4 conversion using synthetic media",
+      "mobile control-page JavaScript syntax and HTML escaping"
+    ],
+    "actual_browser_recording": "NOT VERIFIED: matching Chromium executable unavailable; download returned an invalid/truncated archive",
+    "docker_build": "Includes a required actual Chromium workflow recording smoke test; Docker is unavailable here, so this image was not built locally"
+  },
+  "hosting": "Requires a connected cloud host and source repository; no endpoint or ChatGPT connection created",
+  "dependencies": {
+    "node": ">=22",
+    "playwright": "1.64.1",
+    "mcp_sdk": "1.32.2"
+  },
+  "scope": "Personal single-user recorder for explicitly allowed public/demo sites; no remote sign-in handoff or multi-user isolation"
+}

@@ -1,0 +1,23 @@
+{
+  "name": "align-workflow-recorder",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Phone-controlled browser workflow recording with MCP tools",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "mcp": "node stdio.mjs",
+    "test": "node --test recorder.test.mjs",
+    "test:browser": "node browser-smoke.mjs",
+    "setup:browser": "playwright install chromium"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "playwright": "1.64.1",
+    "zod": "3.25.76",
+    "express": "5.1.0"
+  }
+}
