@@ -1,4 +1,5 @@
 import express from 'express';
+import {demoPage} from './demo.mjs';
 import {randomBytes} from 'node:crypto';
 import {join,dirname,resolve} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
@@ -17,7 +18,7 @@ export function config(env=process.env){
  const origins=(env.ALLOWED_ORIGINS||'https://align-career-match-rk.rkaura94.chatgpt.site').split(',').map(x=>new URL(x.trim()).origin);
  return {port,base:base.origin,password,origins,output:resolve(env.OUTPUT_DIR||'./recordings')};
 }
-export function createApp(c,recorder=new Recorder({origins:c.origins,output:c.output})){
+export function createApp(c,recorder=new Recorder({origins:[...c.origins,...(c.base.startsWith("https:")?[c.base]:[])],output:c.output})){
  const app=express(),auth=new PersonalAuth(c.base),base=new URL(c.base),secure=base.protocol==='https:';
  let failedLogins=0,resetAt=Date.now()+900000;
  app.disable('x-powered-by');app.use(express.json({limit:'16kb'}));app.use(express.urlencoded({extended:false,limit:'4kb'}));
@@ -29,6 +30,7 @@ export function createApp(c,recorder=new Recorder({origins:c.origins,output:c.ou
  const login=(password)=>{if(Date.now()>resetAt){failedLogins=0;resetAt=Date.now()+900000}if(failedLogins>=10)return false;if(!equal(password,c.password)){failedLogins++;return false}return true};
  const download=r=>new URL('/download/'+auth.download(r),c.base).href;
  const clean=setInterval(()=>recorder.cleanup().catch(()=>{}),300000);clean.unref();
+ app.get('/walkthrough',(_req,res)=>res.type('html').send(demoPage(res.locals.nonce)));
  app.get('/healthz',(_req,res)=>res.json({ok:true}));
  app.get('/',(req,res)=>res.type('html').send(signedIn(req)?consolePage({...c,nonce:res.locals.nonce}):passwordPage({...c,nonce:res.locals.nonce})));
  app.post('/login',sameOrigin,(req,res)=>{if(!login(req.body.password))return res.status(401).send('Password not accepted. After ten failed attempts, wait 15 minutes.');res.cookie('recorder',auth.cookie(),{httpOnly:true,secure,sameSite:'strict',maxAge:8*3600000,path:'/'});res.redirect(303,'/')});
